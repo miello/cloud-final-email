@@ -58,6 +58,8 @@ func main() {
 	chnMessages := make(chan *sqs.Message, 2)
 	go sqs_lib.PollMessages(queue_url, sqs_svc, chnMessages)
 
+	fmt.Println("Waiting for messages...")
+
 	for message := range chnMessages {
 		go func(message *sqs.Message) {
 			var jsonResult QueueBody
@@ -69,6 +71,8 @@ func main() {
 				fmt.Println(err)
 				return
 			}
+
+			fmt.Println("Received: " + jsonResult.S3Key)
 
 			buff := &aws.WriteAtBuffer{}
 			_, err = downloader.Download(buff, &s3.GetObjectInput{
@@ -87,7 +91,7 @@ func main() {
 				return
 			}
 
-			ses_lib.SendEmail(ses_svc, sender_email, jsonResult.Email, string(buff.Bytes()), jsonResult.FileId)
+			ses_lib.SendEmail(ses_svc, sender_email, jsonResult.Email, buff.Bytes(), jsonResult.FileId)
 			sqs_lib.DeleteMessage(queue_url, sqs_svc, message)
 		}(message)
 	}

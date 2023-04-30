@@ -29,7 +29,6 @@ func PollMessages(queue_url string, sqsSvc *sqs.SQS, chn chan<- *sqs.Message) {
 
 func GetMessage(msg *sqs.Message) *string {
 	fmt.Println("RECEIVING MESSAGE >>> ")
-	fmt.Println(*msg.Body)
 
 	return msg.Body
 }

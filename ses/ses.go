@@ -1,11 +1,14 @@
 package ses
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ses"
+	"gopkg.in/gomail.v2"
 )
 
 const (
@@ -24,42 +27,34 @@ const (
 
 	// The character encoding for the email.
 	CharSet = "UTF-8"
-
-	Template = `From: Jerm Resume <%s>
-To: %s
-Subject: %s
-MIME-version: 1.0
-Content-type: multipart/mixed; boundary="NextPart"
-
---NextPart
-Content-Type: text/html charset=UTF-8
-Content-Transfer-Encoding: quoted-printable
-
-%s
-
---NextPart
-Content-Type: application/pdf;
-Content-Transfer-Encoding: base64
-Content-Disposition: attachment; filename="%s"
-
-%s
-
---NextPart--`
 )
 
-func SendEmail(svc *ses.SES, sender string, targetEmail string, file string, fileId string) {
+func SendEmail(svc *ses.SES, sender string, targetEmail string, file []byte, fileId string) {
 	HtmlBody := fmt.Sprintf(`<h1>Your Jerm Resume is ready (Ref id: %s)</h1>`, fileId)
 	filename := fmt.Sprintf("jermed-%s.pdf", fileId)
 	SubjectFormated := fmt.Sprintf(Subject, fileId)
 
-	// TextBody := "Your Jerm Resume is ready! Please see in the attachment."
+	var emailRaw bytes.Buffer
+
+	goMail := gomail.NewMessage()
+	goMail.SetHeader("From", fmt.Sprintf("Jerm Resume <%s>", sender))
+	goMail.SetHeader("To", targetEmail)
+	goMail.SetHeader("Subject", SubjectFormated)
+	goMail.SetBody("text/html", HtmlBody)
+	goMail.Attach(filename, gomail.SetCopyFunc(func(w io.Writer) error {
+		_, err := w.Write(file)
+		return err
+	}))
+
+	goMail.WriteTo(&emailRaw)
+
 	input := &ses.SendRawEmailInput{
 		Destinations: []*string{
 			aws.String(targetEmail),
 		},
 		Source: aws.String(sender),
 		RawMessage: &ses.RawMessage{
-			Data: []byte(fmt.Sprintf(Template, sender, targetEmail, SubjectFormated, HtmlBody, filename, file)),
+			Data: emailRaw.Bytes(),
 		},
 	}
 
